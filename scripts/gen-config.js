@@ -2,8 +2,10 @@
 // Only the public anon key belongs here - never the service_role key.
 const fs = require('fs');
 const path = require('path');
-const url = process.env.SUPABASE_URL || '';
-const key = process.env.SUPABASE_ANON_KEY || '';
+// Accepts SUPABASE_URL / SUPABASE_ANON_KEY, or the alternative names Project_URL / ANON_Public (case-insensitive).
+const pick = (...names) => { for (const n of names) { const k = Object.keys(process.env).find((e) => e.toLowerCase() === n.toLowerCase()); if (k && process.env[k]) return process.env[k].trim(); } return ''; };
+const url = pick('SUPABASE_URL', 'Project_URL');
+const key = pick('SUPABASE_ANON_KEY', 'ANON_Public');
 if (!url || !key) {
   console.error('ERROR: set SUPABASE_URL and SUPABASE_ANON_KEY in Netlify (Site configuration -> Environment variables).');
   process.exit(1);
