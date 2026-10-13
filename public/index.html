@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EDF Platform</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mut:#667085;--line:#d9dde3;--pri:#1f5fbf;--err:#b42318;--warn:#b54708;--ok:#067647}
+  @media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--ink:#e6e9ee;--mut:#98a2b3;--line:#323b48;--pri:#6ea0ec;--err:#f97066;--warn:#fdb022;--ok:#47cd89}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,Arial,sans-serif}
+  header{padding:16px;border-bottom:1px solid var(--line);background:var(--card);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0}
+  nav button{background:none;border:0;color:var(--mut);font:inherit;padding:6px 10px;cursor:pointer;border-radius:6px}
+  nav button.on{color:var(--ink);background:var(--bg);font-weight:600}
+  main{max-width:1280px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:32px;text-align:center;color:var(--mut);cursor:pointer}
+  .drop.over{border-color:var(--pri);color:var(--pri)}
+  button.pri{background:var(--pri);color:#fff;border:0;padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer}
+  button.pri:disabled{opacity:.45;cursor:not-allowed}
+  button.sec{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid var(--line);padding:3px 5px;text-align:left;vertical-align:top}
+  th{background:var(--bg);position:sticky;top:0}
+  td input{width:100%;min-width:70px;border:0;background:transparent;color:inherit;font:inherit;padding:2px}
+  td input:focus{outline:2px solid var(--pri)}
+  .tbl{overflow:auto;max-height:55vh}
+  .err{color:var(--err)} .warn{color:var(--warn)} .ok{color:var(--ok)}
+  .strip{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 12px;color:var(--mut)}
+  .strip b{color:var(--ink)}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  label.f{display:flex;flex-direction:column;font-size:13px;color:var(--mut);gap:3px}
+  label.f input,label.f select,label.f textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px}
+  .hidden{display:none}
+  a.dl{color:var(--pri)}
+  #msg{padding:10px 14px;border-radius:8px;margin-bottom:12px}
+  #msg.e{background:#fee4e2;color:#7a271a} #msg.o{background:#d1fadf;color:#05603a}
+  @media(max-width:700px){main{padding:12px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>EDF Auto-Populate Platform</h1>
+  <nav>
+    <button id="t-gen" class="on">Upload &amp; Generate</button>
+    <button id="t-set">Exporter settings</button>
+  </nav>
+</header>
+<main>
+<div id="msg" class="hidden"></div>
+
+<section id="p-gen">
+  <div class="card">
+    <div class="drop" id="drop">Drop the sales <b>.xlsx</b> here, or click to choose a file
+      <input type="file" id="file" accept=".xlsx" class="hidden"></div>
+  </div>
+  <div id="review" class="card hidden">
+    <div class="strip" id="strip"></div>
+    <div class="tbl"><table id="tbl"></table></div>
+    <div class="row" style="margin-top:14px">
+      <label><input type="checkbox" id="perinv"> One EDF per invoice (default: one per client per month)</label>
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px">Declaration date
+        <input type="date" id="decl" title="Leave blank = last day of invoice month"></label>
+      <button class="pri" id="go" disabled>Generate PDFs</button>
+    </div>
+    <label class="f" style="margin-top:10px">Description of services override (blank = use Exporter settings)
+      <input id="desc"></label>
+  </div>
+  <div id="out" class="card hidden"></div>
+</section>
+
+<section id="p-set" class="hidden">
+  <div class="card">
+    <p style="margin-top:0;color:var(--mut)">These details are the same on every EDF. They are saved on this computer (data/exporter.json). The values below are the dummy ones from the sample file – replace them with your real details.</p>
+    <div class="grid" id="setgrid"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="pri" id="save">Save</button>
+      <button class="sec" id="reset">Reset form numbering</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let rows = [];
+const COLS = [
+  ['name_and_address','Recipient name & address'],['country','Country'],['invoice_no','Invoice No.'],['invoice_date','Invoice date (yyyy-mm-dd)'],
+  ['currency','Cur.'],['invoice_amount','Invoice amt'],['net_realisable_value','Net realisable'],['exchange_rate','FX rate'],
+  ['contract_ref','Contract ref'],['service_description','Description'],['sac_code','SAC'],['remarks','Remarks']];
+
+function msg(t, kind){ const m=$('#msg'); m.textContent=t||''; m.className = t ? (kind==='ok'?'o':'e') : 'hidden'; if(t) m.scrollIntoView({block:'nearest'}); }
+async function api(url, opts){ const r = await fetch(url, opts); const j = await r.json(); if(!r.ok) throw new Error(j.error||'Request failed'); return j; }
+
+// tabs
+for (const [b,p] of [['#t-gen','#p-gen'],['#t-set','#p-set']]) $(b).onclick = () => {
+  for (const [bb,pp] of [['#t-gen','#p-gen'],['#t-set','#p-set']]) { $(bb).classList.toggle('on', bb===b); $(pp).classList.toggle('hidden', pp!==p); }
+  if (p==='#p-set') loadSettings();
+};
+
+// upload
+const drop = $('#drop'), file = $('#file');
+drop.onclick = () => file.click();
+drop.ondragover = (e)=>{e.preventDefault();drop.classList.add('over')};
+drop.ondragleave = ()=>drop.classList.remove('over');
+drop.ondrop = (e)=>{e.preventDefault();drop.classList.remove('over'); if(e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);};
+file.onchange = ()=>{ if(file.files[0]) upload(file.files[0]); };
+
+async function upload(f){
+  msg(''); $('#out').classList.add('hidden');
+  try {
+    const buf = await f.arrayBuffer();
+    const j = await api('/api/parse', {method:'POST', headers:{'x-filename':encodeURIComponent(f.name)}, body:buf});
+    rows = j.rows; drop.firstChild.textContent = `Loaded ${f.name} (sheet “${j.sheet}”, header row ${j.header_row}). Drop another file to replace. `;
+    render();
+  } catch(e){ msg(e.message); }
+}
+
+function render(){
+  $('#review').classList.remove('hidden');
+  const errs = rows.filter(r=>r.errors.length).length, warns = rows.filter(r=>r.warnings.length).length;
+  const clients = new Set(rows.map(r=>(r.client_name+'|'+r.country).toLowerCase())).size;
+  $('#strip').innerHTML = `<span><b>${rows.length}</b> rows</span><span><b>${rows.length-errs}</b> valid</span><span class="${errs?'err':''}"><b>${errs}</b> errors</span><span class="${warns?'warn':''}"><b>${warns}</b> warnings</span><span><b>${clients}</b> clients</span>`;
+  const t = $('#tbl');
+  t.innerHTML = '<tr><th>#</th><th>Status</th>' + COLS.map(c=>`<th>${c[1]}</th>`).join('') + '<th>INR value</th></tr>';
+  rows.forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    const st = r.errors.length ? `<span class="err" title="${esc(r.errors.join('; '))}">✖ ${esc(r.errors.join('; '))}</span>` : r.warnings.length ? `<span class="warn">⚠ ${esc(r.warnings.join('; '))}</span>` : '<span class="ok">✔</span>';
+    tr.innerHTML = `<td>${i+1}</td><td style="min-width:160px">${st}</td>` + COLS.map(c=>`<td><input data-i="${i}" data-k="${c[0]}" value="${esc(r[c[0]]??'')}"></td>`).join('') + `<td style="white-space:nowrap">${esc(r.inr_value||'')}</td>`;
+    t.appendChild(tr);
+  });
+  $('#go').disabled = errs>0 || !rows.length;
+}
+const esc = (s)=>String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let tmr;
+$('#tbl').addEventListener('input', (e)=>{
+  const i = e.target.dataset.i; if(i===undefined) return;
+  rows[i][e.target.dataset.k] = e.target.value;
+  clearTimeout(tmr);
+  tmr = setTimeout(async ()=>{
+    const a = document.activeElement, pos = a && a.dataset ? [a.dataset.i, a.dataset.k, a.selectionStart] : null;
+    try { rows = (await api('/api/validate',{method:'POST',body:JSON.stringify({rows})})).rows; render();
+      if(pos){ const el = document.querySelector(`input[data-i="${pos[0]}"][data-k="${pos[1]}"]`); if(el){ el.focus(); el.setSelectionRange(pos[2],pos[2]); } }
+    } catch(err){ msg(err.message); }
+  }, 600);
+});
+
+$('#go').onclick = async ()=>{
+  msg(''); $('#go').disabled = true; $('#go').textContent = 'Generating…';
+  try {
+    const j = await api('/api/generate',{method:'POST',body:JSON.stringify({rows, perInvoice:$('#perinv').checked, declarationDate:$('#decl').value||null, description:$('#desc').value.trim()||null})});
+    const o = $('#out'); o.classList.remove('hidden');
+    o.innerHTML = `<div class="row" style="justify-content:space-between"><b>${j.results.length} EDF PDF(s) generated</b><a class="dl" id="zip" href="data:application/zip;base64,${j.zip}" download="EDFs.zip"><button class="pri">Download all (ZIP)</button></a></div>
+      <table style="margin-top:10px"><tr><th>Form No</th><th>Client</th><th>Invoices</th><th>Total (INR)</th><th>In words</th><th></th></tr>` +
+      j.results.map(r=>`<tr><td>${esc(r.form_no)}</td><td>${esc(r.client)}<br><small>${esc(r.country)}</small></td><td>${r.invoices}</td><td>${esc(r.total_inr)}</td><td>${esc(r.total_words)}</td>
+      <td><a class="dl" href="data:application/pdf;base64,${r.pdf}" download="${esc(r.file)}">Download</a> · <a class="dl" target="_blank" href="/output/${encodeURIComponent(r.file)}">Open</a></td></tr>`).join('') + '</table>' +
+      '<p style="color:var(--mut)">Copies are also saved in the <code>output</code> folder of the project.</p>';
+    o.scrollIntoView({behavior:'smooth'});
+  } catch(e){ msg(e.message); }
+  $('#go').disabled = false; $('#go').textContent = 'Generate PDFs';
+};
+
+// settings
+const LABELS = {legal_name:'Exporter legal name',address:'Exporter address',ie_code:'IE Code',gstin:'GSTIN',pan:'PAN',ad_code:'AD code',ad_name_address:'AD name & address',type_of_export:'Type of export',shipping_bill_text:'Shipping Bill No. & Date',
+ transport_mode:['Mode of transport',['air','land','sea','post_courier','internet','others']],exporter_category:['Category of exporter',['custom_dta','sez','eou_100','warehouse','others']],exporter_category_other:'Category – others (specify)',
+ realisation_mode:['Mode of realisation',['lc','bg','others']],realisation_note:'Realisation note',third_party_text:'Third party name & address',third_party_relationship:'Third party relationship',lc_bg_ad_text:'AD name & code (LC/BG)',leo_text:'Date of LEO',
+ port_of_loading_text:'Port of loading',port_of_discharge_text:'Port of discharge',default_services_description:'Description of services',realisation_months:'Realisation period (months)',signatory_label:'Signatory label',form_no_prefix:'Form number prefix'};
+let exp = {};
+async function loadSettings(){
+  exp = (await api('/api/exporter')).exporter;
+  $('#setgrid').innerHTML = Object.entries(LABELS).map(([k,l])=>{
+    if (Array.isArray(l)) return `<label class="f">${l[0]}<select data-k="${k}">${l[1].map(o=>`<option ${exp[k]===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
+    return `<label class="f">${l}<input data-k="${k}" value="${esc(exp[k]??'')}"></label>`;
+  }).join('');
+}
+$('#save').onclick = async ()=>{
+  const o = {}; document.querySelectorAll('#setgrid [data-k]').forEach(el=>o[el.dataset.k]=el.value);
+  o.realisation_months = Number(o.realisation_months)||9;
+  try { await api('/api/exporter',{method:'PUT',body:JSON.stringify(o)}); msg('Exporter details saved.','ok'); } catch(e){ msg(e.message); }
+};
+$('#reset').onclick = async ()=>{ if(confirm('Restart all form numbers from 0001?')){ await api('/api/reset-numbering',{method:'POST'}); msg('Form numbering reset.','ok'); } };
+</script>
+</body>
+</html>
