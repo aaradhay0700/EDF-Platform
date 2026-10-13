@@ -1,15 +1,13 @@
 {
   "name": "edf-platform",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Upload monthly sales Excel, get client-wise auto-populated Export Declaration Form PDFs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node scripts/gen-config.js",
+    "dev": "node scripts/dev.js",
+    "test": "node tests/run.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",

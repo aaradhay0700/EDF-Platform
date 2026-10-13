@@ -1,7 +1,9 @@
+(function () {
 'use strict';
-// Parsing, validation, money/date/words helpers for the EDF platform (local build).
-const ExcelJS = require('exceljs');
-const Decimal = require('decimal.js');
+// Parsing, validation, money/date/words helpers for the EDF platform .
+const isNode = typeof window === 'undefined';
+const ExcelJS = isNode ? require('exceljs') : window.ExcelJS;
+const Decimal = isNode ? require('decimal.js') : window.Decimal;
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -239,4 +241,6 @@ function groupEdfs(valid, perInvoice) {
   return list;
 }
 
-module.exports = { parseWorkbook, validateRows, rowsFromClient, toJSONRow, groupEdfs, fmtMoney, fmtDate, isoDate, fromIso, lastDayOfMonth, rupeesInWords, indianWords, fmtIndian, fyOf, MON, clean, Decimal };
+const api = { parseWorkbook, validateRows, rowsFromClient, toJSONRow, groupEdfs, fmtMoney, fmtDate, isoDate, fromIso, lastDayOfMonth, rupeesInWords, indianWords, fmtIndian, fyOf, MON, clean, Decimal };
+if (isNode) module.exports = api; else window.EdfLib = api;
+})();

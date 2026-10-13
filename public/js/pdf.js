@@ -1,8 +1,10 @@
+(function () {
 'use strict';
+const isNode = typeof window === 'undefined';
 // Renders one EDF (from a snapshot object) to a PDF buffer. All fixed wording lives in T below.
-const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const path = require('path');
+const PDFDocument = isNode ? require('pdfkit') : window.PDFDocument;
+const fs = isNode ? require('fs') : null;
+const path = isNode ? require('path') : null;
 
 const T = {
   annex: 'Annex',
@@ -24,6 +26,7 @@ const T = {
 };
 
 function fontPaths() {
+  if (!isNode) return ['Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique'];
   const cands = [
     [path.join(__dirname, 'fonts', 'LiberationSans-Regular.ttf'), path.join(__dirname, 'fonts', 'LiberationSans-Bold.ttf'), path.join(__dirname, 'fonts', 'LiberationSans-Italic.ttf')],
     ['C:/Windows/Fonts/arial.ttf', 'C:/Windows/Fonts/arialbd.ttf', 'C:/Windows/Fonts/ariali.ttf'],
@@ -44,7 +47,7 @@ function renderEdf(s) {
     });
     const bufs = [];
     doc.on('data', (b) => bufs.push(b));
-    doc.on('end', () => resolve(Buffer.concat(bufs)));
+    doc.on('end', () => resolve(isNode ? Buffer.concat(bufs) : new Blob(bufs, { type: 'application/pdf' })));
     doc.on('error', reject);
     doc.registerFont('R', R); doc.registerFont('B', B); doc.registerFont('I', I);
 
@@ -193,4 +196,5 @@ function renderEdf(s) {
   });
 }
 
-module.exports = { renderEdf };
+if (isNode) module.exports = { renderEdf }; else window.EdfPdf = { renderEdf };
+})();
